@@ -30,166 +30,72 @@ extends_documentation_fragment: openstack
 description:
    - Add or Remove network from OpenStack.
 options:
-   tenant_name:
-     description:
-        - The name of the tenant for whom the network is created
-     required: false
-     default: None
    state:
      description:
-        - Indicate desired state of the resource
+        - Indicate desired state of the resource.
      choices: ['present', 'absent']
      default: present
    name:
      description:
-        - Name to be assigned to the nework
+        - Name to be assigned to the network.
      required: true
      default: None
-   provider_network_type:
-     description:
-        - The type of the network to be created, gre, vlan, local. Available types depend on the plugin. The Quantum service decides if not specified.
-     required: false
-     default: None
-   provider_physical_network:
-     description:
-        - The physical network which would realize the virtual network for flat and vlan networks.
-     required: false
-     default: None
-   provider_segmentation_id:
-     description:
-        - The id that has to be assigned to the network, in case of vlan networks that would be vlan id and for gre the tunnel id
-     required: false
-     default: None
-   router_external:
-     description:
-        - If 'yes', specifies that the virtual network is a external network (public).
-     required: false
-     default: false
    shared:
      description:
-        - Whether this network is shared or not
+        - Whether this network is shared or not.
      required: false
      default: false
    admin_state_up:
      description:
-        - Whether the state should be marked as up or down
+        - Whether the state should be marked as up or down.
      required: false
      default: true
 requirements: ["shade"]
-
 '''
 
 EXAMPLES = '''
-# Create a GRE backed network with tunnel id 1 for tenant1
-- os_network: name=t1network tenant_name=tenant1 state=present
-              provider_network_type=gre provider_segmentation_id=1
-              username=admin password=admin project_name=admin
-
-# Create an external network
-- os_network: name=external_network state=present
-              provider_network_type=local router_external=yes
-              username=admin password=admin project_name=admin
+- os_network:
+    name=t1network
+    state=present
 '''
 
 
-def _get_net_id(neutron, module):
-    kwargs = {
-            'name': module.params['name'],
-    }
-    try:
-        networks = neutron.list_networks(**kwargs)
-    except Exception, e:
-        module.fail_json(msg = "Error in listing neutron networks: %s" % e.message)
-    if not networks['networks']:
-        return None
-    return networks['networks'][0]['id']
-
-def _create_network(module, neutron):
-
-    neutron.format = 'json'
-
-    network = {
-        'name':                      module.params.get('name'),
-        'provider:network_type':     module.params.get('provider_network_type'),
-        'provider:physical_network': module.params.get('provider_physical_network'),
-        'provider:segmentation_id':  module.params.get('provider_segmentation_id'),
-        'router:external':           module.params.get('router_external'),
-        'shared':                    module.params.get('shared'),
-        'admin_state_up':            module.params.get('admin_state_up'),
-    }
-
-    if module.params['provider_network_type'] == 'local':
-        network.pop('provider:physical_network', None)
-        network.pop('provider:segmentation_id', None)
-
-    if module.params['provider_network_type'] == 'flat':
-        network.pop('provider:segmentation_id', None)
-
-    if module.params['provider_network_type'] == 'gre':
-        network.pop('provider:physical_network', None)
-
-    if module.params['provider_network_type'] is None:
-        network.pop('provider:network_type', None)
-        network.pop('provider:physical_network', None)
-        network.pop('provider:segmentation_id', None)
-
-    try:
-        net = neutron.create_network({'network':network})
-    except Exception, e:
-        module.fail_json(msg = "Error in creating network: %s" % e.message)
-    return net['network']['id']
-
-def _delete_network(module, net_id, neutron):
-
-    try:
-        id = neutron.delete_network(net_id)
-    except Exception, e:
-        module.fail_json(msg = "Error in deleting the network: %s" % e.message)
-    return True
-
 def main():
     argument_spec = openstack_full_argument_spec(
-        name                            = dict(required=True),
-        tenant_name                     = dict(default=None),
-        provider_network_type           = dict(default=None, choices=['local', 'vlan', 'flat', 'gre']),
-        provider_physical_network       = dict(default=None),
-        provider_segmentation_id        = dict(default=None),
-        router_external                 = dict(default=False, type='bool'),
-        shared                          = dict(default=False, type='bool'),
-        admin_state_up                  = dict(default=True, type='bool'),
+        name=dict(required=True),
+        shared=dict(default=False, type='bool'),
+        admin_state_up=dict(default=True, type='bool'),
     )
+
     module_kwargs = openstack_module_kwargs()
     module = AnsibleModule(argument_spec, **module_kwargs)
 
     if not HAS_SHADE:
         module.fail_json(msg='shade is required for this module')
 
-    if module.params['provider_network_type'] in ['vlan' , 'flat']:
-        if not module.params['provider_physical_network']:
-            module.fail_json(msg = " for vlan and flat networks, variable provider_physical_network should be set.")
-
-    if module.params['provider_network_type']  in ['vlan', 'gre']:
-            if not module.params['provider_segmentation_id']:
-                module.fail_json(msg = " for vlan & gre networks, variable provider_segmentation_id should be set.")
+    state = module.params['state']
+    name = module.params['name']
+    shared = module.params['shared']
+    admin_state_up = module.params['admin_state_up']
 
     try:
         cloud = shade.openstack_cloud(**module.params)
-        neutron = cloud.neutron_client
-        if module.params['state'] == 'present':
-            network_id = _get_net_id(neutron, module)
-            if not network_id:
-                network_id = _create_network(module, neutron)
-                module.exit_json(changed = True, result = "Created", id = network_id)
-            else:
-                module.exit_json(changed = False, result = "Success", id = network_id)
+        net = cloud.get_network(name)
 
-        if module.params['state'] == 'absent':
-            network_id = _get_net_id(neutron, module)
-            if not network_id:
-                module.exit_json(changed = False, result = "Success")
+        if state == 'present':
+            if not net:
+                net = cloud.create_network(name, shared, admin_state_up)
+                module.exit_json(changed=True, result="Created", id=net['id'])
             else:
-                _delete_network(module, network_id, neutron)
-                module.exit_json(changed = True, result = "Deleted")
+                module.exit_json(changed=False, result="Success", id=net['id'])
+
+        elif state == 'absent':
+            if not net:
+                module.exit_json(changed=False, result="Success")
+            else:
+                cloud.delete_network(name)
+                module.exit_json(changed=True, result="Deleted")
+
     except shade.OpenStackCloudException as e:
         module.fail_json(msg=e.message)
 
@@ -198,4 +104,3 @@ def main():
 from ansible.module_utils.basic import *
 from ansible.module_utils.openstack import *
 main()
-
