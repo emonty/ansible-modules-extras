@@ -94,7 +94,7 @@ requirements: ["shade"]
 '''
 
 EXAMPLES = '''
-# Upload an image from an HTTP URL
+# Upload an image from a local file named cirros-0.3.0-x86_64-disk.img
 - os_image:
     auth:
       username: admin

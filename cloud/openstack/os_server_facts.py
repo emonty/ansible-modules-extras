@@ -36,19 +36,14 @@ options:
      description:
         - Name or ID of the instance
      required: true
-   mounts:
-     description:
-        - Optional list of dicts tying volumes to mount points
-     default: None
 requirements: ["shade"]
 '''
 
 EXAMPLES = '''
-# Create a server, then inject facts about it:
+# Gather facts about a previously created server named vm1
 - os_server_facts:
-    state: present
     cloud: rax-dfw
-    name: vm1
+    server: vm1
 - debug: var=openstack
 '''
 
@@ -56,7 +51,6 @@ def main():
 
     argument_spec = openstack_full_argument_spec(
         server=dict(required=True),
-        mounts=dict(default={}),
     )
     module_kwargs = openstack_module_kwargs()
     module = AnsibleModule(argument_spec, **module_kwargs)
@@ -68,7 +62,7 @@ def main():
         cloud = shade.openstack_cloud(**module.params)
         server = cloud.get_server(module.params['server'])
         hostvars = dict(openstack=meta.get_hostvars_from_server(
-            cloud, server, mounts=module.params['mounts']))
+            cloud, server))
         module.exit_json(changed=False, ansible_facts=hostvars)
 
     except shade.OpenStackCloudException as e:

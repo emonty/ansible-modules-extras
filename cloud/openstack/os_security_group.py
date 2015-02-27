@@ -24,7 +24,7 @@ except ImportError:
 
 DOCUMENTATION = '''
 ---
-module: os_secgroup
+module: os_security_group
 short_description: Add/Delete security groups from an OpenStack cloud.
 extends_documentation_fragment: openstack
 description:
@@ -50,8 +50,8 @@ requirements: ["shade"]
 
 EXAMPLES = '''
 # Create a security group
-- os_secgroup: cloud=mordred name=foo
-               description=security group for foo servers
+- os_security_group: cloud=mordred name=foo
+                     description=security group for foo servers
 '''
 
 

@@ -26,10 +26,10 @@ except ImportError:
 DOCUMENTATION = '''
 ---
 module: os_object
-short_description: Create or Delete object objects and containers from OpenStack
+short_description: Create or Delete objects and containers from OpenStack
 extends_documentation_fragment: openstack
 description:
-   - Create or Delete object objects and containers from OpenStack
+   - Create or Delete objects and containers from OpenStack
 options:
    container:
      description:

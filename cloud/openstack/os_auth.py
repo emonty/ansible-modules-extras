@@ -30,27 +30,19 @@ extends_documentation_fragment: openstack
 description:
    - Retrieve an auth token from an OpenStack Cloud
 options:
-  state:
-    description:
-      - Should the resource be present or absent.
-    choices: [present, absent]
-    default: present
 requirements: ["shade"]
 '''
 
 EXAMPLES = '''
-# Fetch facts about an instance called vm1
+# Authenticate to the cloud and retreive the service catalog
 - os_auth:
     cloud: rax-dfw
-  register: results
-- debug: var=results
+- debug: var=service_catalog
 '''
 
 def main():
 
-    argument_spec = openstack_full_argument_spec(
-        state=dict(default='present', choices=['absent', 'present']),
-    )
+    argument_spec = openstack_full_argument_spec()
     module_kwargs = openstack_module_kwargs()
     module = AnsibleModule(argument_spec, **module_kwargs)
 
@@ -61,8 +53,9 @@ def main():
         cloud = shade.openstack_cloud(**module.params)
         module.exit_json(
             changed=False,
-            auth_token=cloud.auth_token,
-            service_catalog=cloud.service_catalog)
+            ansible_facts=dict(
+              auth_token=cloud.auth_token,
+              service_catalog=cloud.service_catalog))
     except shade.OpenStackCloudException as e:
         module.fail_json(msg=e.message)
 

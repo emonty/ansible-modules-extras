@@ -49,7 +49,7 @@ options:
      required: true
    device:
      description:
-      - Device you want to attach
+      - Device you want to attach. Defaults to auto finding a device name.
      required: false
      default: None
    state:
@@ -79,7 +79,7 @@ def main():
     argument_spec = openstack_full_argument_spec(
         server=dict(required=True),
         volume=dict(required=True),
-        device=dict(default=None),
+        device=dict(default=None),  # None == auto choose device name
         state=dict(default='present', choices=['absent', 'present']),
     )
 

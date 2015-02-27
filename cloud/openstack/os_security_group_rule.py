@@ -24,7 +24,7 @@ except ImportError:
 
 DOCUMENTATION = '''
 ---
-module: os_secgroup_rule
+module: os_security_group_rule
 short_description: Add/Delete rule from an existing security group
 extends_documentation_fragment: openstack
 description:
@@ -34,22 +34,27 @@ options:
      description:
         - Name of the security group
      required: true
-   ip_protocol:
+   protocol:
       description:
         - IP protocol
       choices: ['tcp', 'udp', 'icmp']
       default: tcp
-   from_port:
+   port_range_min:
       description:
         - Starting port
       required: true
-   to_port:
+   port_range_max:
       description:
         - Ending port
      required: true
-   cidr:
+   remote_ip_prefix:
       description:
-        - Source IP address(es) in CIDR notation
+        - Source IP address(es) in CIDR notation (exclusive with remote_group)
+     required: false
+   remote_group:
+      description:
+        - ID of Security group to link (exclusive with remote_ip_prefix)
+     required: false
    state:
      description:
        - Should the resource be present or absent.
@@ -58,15 +63,16 @@ options:
 
 requirements: ["shade"]
 '''
+# TODO(mordred): add ethertype and direction
 
 EXAMPLES = '''
 # Create a security group rule
-- os_secgroup_rule: cloud=mordred
-                    security_group=group foo
-                    ip_protocol: tcp
-                    from_port: 80
-                    to_port: 80
-                    cidr: 0.0.0.0/0
+- os_security_group_rule: cloud=mordred
+                          security_group=group foo
+                          protocol: tcp
+                          port_range_min: 80
+                          port_range_max: 80
+                          remote_ip_prefix: 0.0.0.0/0
 '''
 
 
@@ -81,10 +87,10 @@ def _security_group_rule(module, nova_client, action='create', **kwargs):
 
 def _get_rule_from_group(module, secgroup):
     for rule in secgroup.rules:
-        if (rule['ip_protocol'] == module.params['ip_protocol'] and
-            rule['from_port'] == module.params['from_port'] and
-            rule['to_port'] == module.params['to_port'] and
-            rule['ip_range']['cidr'] == module.params['cidr']):
+        if (rule['ip_protocol'] == module.params['protocol'] and
+            rule['from_port'] == module.params['port_range_min'] and
+            rule['to_port'] == module.params['port_range_max'] and
+            rule['ip_range']['cidr'] == module.params['remote_ip_prefix']):
             return rule
     return None
 
@@ -92,13 +98,18 @@ def main():
 
     argument_spec = openstack_full_argument_spec(
         security_group      = dict(required=True),
-        ip_protocol         = dict(default='tcp', choices=['tcp', 'udp', 'icmp']),
-        from_port           = dict(required=True),
-        to_port             = dict(required=True),
-        cidr                = dict(required=True),
+        protocol            = dict(default='tcp', choices=['tcp', 'udp', 'icmp']),
+        port_range_min      = dict(required=True),
+        port_range_max      = dict(required=True),
+        remote_ip_prefix    = dict(required=False, default=None),
+        # TODO(mordred): Make remote_group handle name and id
+        remote_group        = dict(required=False, default=None),
         state               = dict(default='present', choices=['absent', 'present']),
     )
-    module_kwargs = openstack_module_kwargs()
+    module_kwargs = openstack_module_kwargs(
+        mutually_exclusive=[
+            ['remote_ip_prefix', 'remote_group'],
+    )
     module = AnsibleModule(argument_spec, **module_kwargs)
 
     try:
@@ -116,10 +127,11 @@ def main():
             if not _get_rule_from_group(module, secgroup):
                 _security_group_rule(module, nova_client, 'create',
                                      parent_group_id=secgroup.id,
-                                     ip_protocol=module.params['ip_protocol'],
-                                     from_port=module.params['from_port'],
-                                     to_port=module.params['to_port'],
-                                     cidr=module.params['cidr'])
+                                     ip_protocol=module.params['protocol'],
+                                     from_port=module.params['port_range_min'],
+                                     to_port=module.params['port_range_max'],
+                                     cidr=module.params['remote_ip'],
+                                     group_id=module.params['remote_group'],
                 changed = True
 
 
