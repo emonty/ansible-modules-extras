@@ -81,18 +81,18 @@ def main():
         if state == 'present':
             if not router:
                 router = cloud.create_router(name, admin_state_up)
-                module.exit_json(changed=True, result="Created",
+                module.exit_json(changed=True, result="created",
                                  id=router['id'])
             else:
-                module.exit_json(changed=False, result="Success",
+                module.exit_json(changed=False, result="success",
                                  id=router['id'])
 
         elif state == 'absent':
             if not router:
-                module.exit_json(changed=False, result="Success")
+                module.exit_json(changed=False, result="success")
             else:
                 cloud.delete_router(name)
-                module.exit_json(changed=True, result="Deleted")
+                module.exit_json(changed=True, result="deleted")
 
     except shade.OpenStackCloudException as e:
         module.fail_json(msg=e.message)
