@@ -29,7 +29,9 @@ module: os_router
 short_description: Create or Delete routers from OpenStack
 extends_documentation_fragment: openstack
 description:
-   - Create or Delete routers from OpenStack
+   - Create or Delete routers from OpenStack. Although Neutron allows
+     routers to share the same name, this module enforces name uniqueness
+     to be more user friendly.
 options:
    state:
      description:
@@ -57,6 +59,27 @@ EXAMPLES = '''
 '''
 
 
+def _needs_update(router, admin_state_up):
+    """Decide if the given router needs an update.
+
+    The only attribute of the router that we allow to change is the value
+    of admin_state_up. Name changes are not supported here.
+    """
+    if router['admin_state_up'] != admin_state_up:
+        return True
+    return False
+
+def _system_state_change(module, router):
+    """Check if the system state would be changed."""
+    state = module.params['state']
+    if state == 'absent' and router:
+        return True
+    if state == 'present':
+        if not router:
+            return True
+        return _needs_update(router, module.params['admin_state_up'])
+    return False
+
 def main():
     argument_spec = openstack_full_argument_spec(
         name=dict(required=True),
@@ -65,7 +88,9 @@ def main():
     )
 
     module_kwargs = openstack_module_kwargs()
-    module = AnsibleModule(argument_spec, **module_kwargs)
+    module = AnsibleModule(argument_spec,
+                           supports_check_mode=True,
+                           **module_kwargs)
 
     if not HAS_SHADE:
         module.fail_json(msg='shade is required for this module')
@@ -78,14 +103,23 @@ def main():
         cloud = shade.openstack_cloud(**module.params)
         router = cloud.get_router(name)
 
+        if module.check_mode:
+            module.exit_json(changed=_system_state_change(module, router))
+
         if state == 'present':
             if not router:
                 router = cloud.create_router(name, admin_state_up)
                 module.exit_json(changed=True, result="created",
                                  id=router['id'])
             else:
-                module.exit_json(changed=False, result="success",
-                                 id=router['id'])
+                if _needs_update(router, admin_state_up):
+                    cloud.update_router(router['id'],
+                                        admin_state_up=admin_state_up)
+                    module.exit_json(changed=True, result="updated",
+                                     id=router['id'])
+                else:
+                    module.exit_json(changed=False, result="success",
+                                     id=router['id'])
 
         elif state == 'absent':
             if not router:
