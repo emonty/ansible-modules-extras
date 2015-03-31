@@ -272,8 +272,10 @@ def _create_server(module, cloud):
     flavor_ram = module.params['flavor_ram']
     flavor_include = module.params['flavor_include']
 
-    image_id = cloud.get_image_id(
-        module.params['image'], module.params['image_exclude'])
+    image_id = None
+    if not module.params['root_volume']:
+        image_id = cloud.get_image_id(
+            module.params['image'], module.params['image_exclude'])
 
     if flavor:
         flavor_id = cloud.get_flavor(flavor)
@@ -399,6 +401,7 @@ def main():
             ['auto_floating_ip', 'floating_ip_pools'],
             ['floating_ips', 'floating_ip_pools'],
             ['flavor', 'flavor_ram'],
+            ['image', 'root_volume'],
         ],
     )
     module = AnsibleModule(argument_spec, **module_kwargs)
@@ -408,13 +411,15 @@ def main():
 
     state = module.params['state']
     image = module.params['image']
+    root_volume = module.params['root_volume']
     flavor = module.params['flavor']
     flavor_ram = module.params['flavor_ram']
 
     if state == 'present':
-        if not image:
+        if not (image or root_volume):
             module.fail_json(
-                msg="Parameter 'image' is required if state == 'present'"
+                msg="Parameter 'image' or 'root_volume' is required "
+                    "if state == 'present'"
             )
         if not flavor and not flavor_ram:
             module.fail_json(
