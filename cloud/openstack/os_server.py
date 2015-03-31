@@ -423,7 +423,9 @@ def main():
             )
 
     try:
-        cloud = shade.openstack_cloud(**module.params)
+        cloud_params = dict(module.params)
+        cloud_params.pop('userdata', None)
+        cloud = shade.openstack_cloud(**cloud_params)
 
         if state == 'present':
             _get_server_state(module, cloud)
