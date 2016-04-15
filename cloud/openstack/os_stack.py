@@ -13,7 +13,7 @@ DOCUMENTATION = '''
 module: os_stack
 short_description: Add/Remove Heat Stack
 extends_documentation_fragment: openstack
-version_added: "2.0"
+version_added: "2.1"
 author: "Mathieu Bultel (matbu), Steve Baker (steveb)"
 description:
    - Add or Remove a Stack to an OpenStack Heat
@@ -83,6 +83,10 @@ EXAMPLES = '''
         image: CentOS
         my_flavor: m1.large
         external_net: {{ external_net_param }}
+'''
+
+RETURN = '''
+#
 '''
 
 def _create_stack(module, stack, cloud):
