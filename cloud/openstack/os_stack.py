@@ -29,7 +29,7 @@ DOCUMENTATION = '''
 module: os_stack
 short_description: Add/Remove Heat Stack
 extends_documentation_fragment: openstack
-version_added: "2.1"
+version_added: "2.2"
 author: "Mathieu Bultel (matbu), Steve Baker (steveb)"
 description:
    - Add or Remove a Stack to an OpenStack Heat
@@ -42,9 +42,8 @@ options:
       default: present
     name:
       description:
-        - Name of the stack that should be created
+        - Name of the stack that should be created, name could be char and digit, no space
       required: true
-      default: None
     template:
       description:
         - Path of the template file to use for the stack creation
@@ -59,6 +58,7 @@ options:
       description:
         - Dictionary of parameters for the stack creation
       required: false
+      default: None
     rollback:
       description:
         - Rollback stack creation
@@ -78,7 +78,7 @@ EXAMPLES = '''
 - name: create stack
   ignore_errors: True
   register: stack_create
-  os_heat:
+  os_stack:
     name: "{{ stack_name }}"
     state: present
     template: "/path/to/my_stack.yaml"
@@ -132,7 +132,7 @@ def _update_stack(module, stack, cloud):
             environment_files=module.params['environment'],
             timeout=module.params['timeout'],
             rollback=module.params['rollback'],
-            wait=True)
+            wait=module.params['wait'])
 
         if stack['stack_status'] == 'UPDATE_COMPLETE':
             return stack
@@ -158,7 +158,7 @@ def main():
         template=dict(default=None),
         environment=dict(default=None, type='list'),
         parameters=dict(default={}, type='dict'),
-        rollback=dict(default=False),
+        rollback=dict(default=False, type='bool'),
         timeout=dict(default=3600, type='int'),
         state=dict(default='present', choices=['absent', 'present']),
     )
@@ -201,11 +201,11 @@ def main():
                 changed = False
             else:
                 changed = True
-                if not cloud.delete_stack(name, wait=True):
+                if not cloud.delete_stack(name, wait=module.params['wait']):
                     module.fail_json(msg='delete stack failed for stack: %s' % name)
             module.exit_json(changed=changed)
     except shade.OpenStackCloudException as e:
-        module.fail_json(msg=e.message)
+        module.fail_json(msg=str(e))
 
 from ansible.module_utils.basic import *
 from ansible.module_utils.openstack import *
