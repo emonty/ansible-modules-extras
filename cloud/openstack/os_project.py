@@ -49,7 +49,7 @@ options:
    domain_id:
      description:
         - Domain id to create the project in if the cloud supports domains.
-          The domain_id parameter requires shade >= 1.8.1
+          The domain_id parameter requires shade >= 1.8.0
      required: false
      default: None
      aliases: ['domain']
@@ -163,8 +163,8 @@ def main():
     enabled = module.params['enabled']
     state = module.params['state']
 
-    if domain and StrictVersion(shade.__version__) < StrictVersion('1.8.1'):
-        module.fail_json(msg="The domain argument requires shade >=1.8.1")
+    if domain and StrictVersion(shade.__version__) < StrictVersion('1.8.0'):
+        module.fail_json(msg="The domain argument requires shade >=1.8.0")
 
     try:
         if domain:
