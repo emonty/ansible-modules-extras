@@ -72,7 +72,6 @@ options:
       - Where the puppet logs should go, if puppet apply is being used
     required: false
     default: stdout
-    choices: [ 'stdout', 'syslog' ]
     version_added: "2.1"
   certname:
     description:
@@ -93,6 +92,19 @@ options:
     required: false
     default: None
     version_added: "2.1"
+  noop:
+    description:
+      - Whether puppet should be run in noop mode
+    required: false
+    default: false
+    version_added: "2.2"
+  debug:
+    description:
+      - Whether puppet should be run in debug mode
+    required: false
+    default: false
+    version_added: "2.2"
+
 requirements: [ puppet ]
 author: "Monty Taylor (@emonty)"
 '''
@@ -147,8 +159,7 @@ def main():
             puppetmaster=dict(required=False, default=None),
             manifest=dict(required=False, default=None),
             logdest=dict(
-                required=False, default='stdout',
-                choices=['stdout', 'syslog']),
+                required=False, default='stdout'),
             show_diff=dict(
                 # internal code to work with --diff, do not use
                 default=False, aliases=['show-diff'], type='bool'),
@@ -158,6 +169,8 @@ def main():
             certname=dict(required=False, default=None),
             tags=dict(required=False, default=None, type='list'),
             execute=dict(required=False, default=None),
+            noop=dict(required=False, default=False, type='bool'),
+            debug=dict(required=False, default=False, type='bool'),
         ),
         supports_check_mode=True,
         mutually_exclusive=[
@@ -211,41 +224,34 @@ def main():
 
     if not p['manifest']:
         cmd = ("%(base_cmd)s agent --onetime"
-               " --ignorecache --no-daemonize --no-usecacheonfailure --no-splay"
-               " --detailed-exitcodes --verbose --color 0") % dict(
+               " --ignorecache --no-daemonize --no-usecacheonfailure"
+               " --no-splay --verbose --color 0") % dict(
                    base_cmd=base_cmd,
                    )
         if p['puppetmaster']:
             cmd += " --server %s" % pipes.quote(p['puppetmaster'])
-        if p['show_diff']:
-            cmd += " --show_diff"
-        if p['environment']:
-            cmd += " --environment '%s'" % p['environment']
-        if p['tags']:
-            cmd += " --tags '%s'" % ','.join(p['tags'])
-        if p['certname']:
-            cmd += " --certname='%s'" % p['certname']
-        if module.check_mode:
-            cmd += " --noop"
-        else:
-            cmd += " --no-noop"
     else:
-        cmd = "%s apply --detailed-exitcodes " % base_cmd
-        if p['logdest'] == 'syslog':
-            cmd += "--logdest syslog "
-        if p['environment']:
-            cmd += "--environment '%s' " % p['environment']
-        if p['certname']:
-            cmd += " --certname='%s'" % p['certname']
-        if p['execute']:
-            cmd += " --execute '%s'" % p['execute']
-        if p['tags']:
-            cmd += " --tags '%s'" % ','.join(p['tags'])
-        if module.check_mode:
-            cmd += "--noop "
-        else:
-            cmd += "--no-noop "
+        cmd = "%s apply " % base_cmd
         cmd += pipes.quote(p['manifest'])
+        if p['logdest'] != 'stdout':
+            cmd += " --logdest %s" % p['logdest']
+    if p['show_diff']:
+        cmd += " --show_diff"
+    if p['environment']:
+        cmd += " --environment '%s'" % p['environment']
+    if p['tags']:
+        cmd += " --tags '%s'" % ','.join(p['tags'])
+    if p['certname']:
+        cmd += " --certname='%s'" % p['certname']
+    if module.check_mode or p['noop']:
+        # Noop causes detailed-exitcodes to sometimes erroneously
+        # return failures, so we only set detailed-exitcodes when
+        # running for real.
+        cmd += " --noop"
+    else:
+        cmd += " --no-noop --detailed-exitcodes"
+    if p['debug']:
+        cmd += " --debug"
     rc, stdout, stderr = module.run_command(cmd)
 
     if rc == 0:
@@ -278,4 +284,5 @@ def main():
 # import module snippets
 from ansible.module_utils.basic import *
 
-main()
+if __name__ == '__main__':
+    main()
